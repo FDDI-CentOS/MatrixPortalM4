@@ -8,7 +8,7 @@ from adafruit_matrixportal.matrixportal import MatrixPortal
 
 # --- Instantiate Display Object and Initialize Cron Clocks ---
 matrixportal = MatrixPortal(status_neopixel=board.NEOPIXEL, debug=True)
-timer = 120
+timer = 60
 last_update = time.monotonic()
 
 # --- Function Request Get JSON Source Data ---
@@ -72,7 +72,8 @@ def stock_Parser(stock_portfolio):
 def time_Parser():
     try:
         time_url = 'http://worldtimeapi.org/api/timezone/America/Los_Angeles'
-        current_time = json.loads(matrixportal.fetch(time_url,timeout=10))
+        current_time = getData(time_url)
+
         # --- Date Time String Generator ---
         for k,v in current_time.items():
             if k == 'datetime':
@@ -80,6 +81,7 @@ def time_Parser():
                 t = utc[1].split('.')[0]
                 d = utc[0]
                 dt = str(d) + ' ' + str(t)
+                time_clock = time.monotonic()
                 return dt
 
     except Exception as e:
@@ -92,7 +94,7 @@ stock_portfolio = {'GOOG':[1086.0,0,0],'SHOP':[1123.53,0,0],'DIS':[124.23,0,0],'
 colors = {'RED':'#cf2727','GREEN':'#77D71C','BLUE':'#0846e4','YELLOW':'#E0F011','ORANGE':'#F0A211','PURPLE':'#824BEB'}
 
 # --- Initialize Parser Calls ---
-#tc = time_Parser()
+tc = time_Parser()
 cp = crypto_Parser()
 sp = stock_Parser(stock_portfolio)
 
@@ -151,7 +153,7 @@ while True:
     matrixportal.set_text(" Ticker",0)
     matrixportal.set_text_color(pallet[randint(0,5)],0)
     matrixportal.set_text("      Time",1)
-    matrixportal.set_text('time',2)
+    matrixportal.set_text(tc,2)
     matrixportal.set_text_color(pallet[0],2)
     matrixportal.set_text(cp,3)
     matrixportal.set_text_color(pallet[3],3)
@@ -160,3 +162,8 @@ while True:
 
     # Scroll Text
     matrixportal.scroll_text(SCROLL_DELAY)
+
+    # Data Refresh
+    if time.monotonic() - last_update >= timer:
+        last_udpate = time.monotonic()
+        update_data()
