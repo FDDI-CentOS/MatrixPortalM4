@@ -9,4 +9,4 @@ Parts Links:
 
 [Matrix Portal M4](https://www.adafruit.com/product/4745)
 
-- FDDICentOS
+-- FDDICentOS
