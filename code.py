@@ -11,7 +11,6 @@ def time_Parser():
     try:
         time_url = 'http://api.timezonedb.com/v2.1/get-time-zone?key=Q7ZT79VNRQIK&format=json&by=zone&zone=America/Los_Angeles'
         current_time = json.loads(matrixportal.fetch(time_url, timeout=10))
-        time.sleep(2)
         tc = current_time['formatted']
         utc = tc.split(' ')
         dt = utc[0] + ' ' + utc[1]
@@ -26,7 +25,6 @@ def crypto_Parser():
     try:
         crypto_url = 'https://api.coindesk.com/v1/bpi/currentprice/BTC.json'
         crypto_data = json.loads(matrixportal.fetch(crypto_url, timeout=5))
-        time.sleep(2)
         crypto_quote = 'BTC: $'
 
         crypto_quote += crypto_data['bpi']['USD']['rate'][:-2]
@@ -37,51 +35,42 @@ def crypto_Parser():
 
 # --- Query Builder for Fetch Command ---
 def fetchQuotes():
-    try:
-        # --- Portfolio Data Structure: Symbol [Purchase Price, Qty, Currnet Price] ---
-        stock_portfolio = ['GOOG','SHOP','DIS','PLUG','TGT']
-        stocks = ''
-        output = ''
-        fcs_key = '0LClGTTVWuZgD1fTMOrADE'
+    stocks = ''
+    output = ''
+    fcs_key = '0LClGTTVWuZgD1fTMOrADE'
 
-        for i in stock_portfolio:
-            stocks += str(i)+","
-        stocks = stocks[:-1]
-        stock_query = f'https://fcsapi.com/api-v3/stock/latest?symbol={stocks}&access_key={fcs_key}'
-        stock_json = json.loads(matrixportal.fetch(stock_query, timeout=10))
-        time.sleep(2)
-        for k, v in stock_json.items():
-            if k == 'response':
-                for i in v:
-                    if i['cty'] == 'united-states':
-                        output += i['s'] + ': ' + i['l'] + ' '
-        return output[:-1]
-    except Exception as e:
-        print(f"Stock Fetcher Failed: {e}")
-        return f"Stock Fetcher Failed: {e}"
+    for i in stock_portfolio:
+        stocks += str(i)+","
+    stocks = stocks[:-1]
+    stock_query = f'https://fcsapi.com/api-v3/stock/latest?symbol={stocks}&access_key={fcs_key}'
+    stock_json = json.loads(matrixportal.fetch(stock_query, timeout=10))
+    for k, v in stock_json.items():
+        if k == 'response':
+            for i in v:
+                if i['cty'] == 'united-states':
+                    output += i['s'] + ': ' + i['l'] + ' '
+    return output[:-1]
 
 # --- Function to Parse Finance JSON Data ---
-def stock_Parser():
+def stock_Parser(tc):
     try:
         # --- Time Check for Market Closure
         print("*** Getting Stock Updates ****")
-        # --- Pause Stock Feed for Off Hours --- 6 am - 2 pm PST
-        if time.monotonic() - last_stock_update > stock_update_delay:
-            last_stock_update = time.monotonic()
-            print("*** Pulling stock data from FCS API ***")
-            return fetchQuotes()
-        elif int(tc[-8:-6]) >= 14:
-            print("*** Market Closed: Before 6am EST ***")
-            return "*** Market Closed: Before 6am EST ***"
-        elif float(tc[-8]) == float(0) and int(tc[-7]) <= 6:
-            print("*** Market Closed: After Hours 4pm EST ***")
-            return "*** Market Closed: After Hours 4pm EST ***"
+        hour = tc[-8:]
+        
+        if int(hour[0]) == 0 and int(hour[1]) <= 5:
+            return f"*** Market Closed: Before Trading Day {tc}"
+        elif int(hour[0]) == 1 and int(hour[1]) >= 4:
+            return f"*** Market Closed: After Hours {tc}"
+        elif time.monotonic() - last_stock_update  >= stock_update_delay:
+            temp = fetchQuotes()
+            print(temp)
+            return temp
         else:
-            return f"*** Stock Updater Skipped {time.monotonic() - last_stock_update} vs {stock_update_delay}"
-
+            return sp
     except Exception as e:
-        return f"Error: Stock Parser Failed, {e}"
-
+        print(f"Stock Parser Error: {e}")
+        return f"Stock Parser Error: {e}"
 # --- Function to Render Title and Flash Text ---
 def renderTitle():
     matrixportal.set_text(" Ticker",1)
@@ -95,7 +84,7 @@ def update_data():
         print("*** Updating Data and Pulling APIs ***")
         tc = time_Parser()
         cp = crypto_Parser()
-        sp = stock_Parser()
+        sp = stock_Parser(tc)
 
         updates = [tc,cp,sp]
 
@@ -124,16 +113,22 @@ def update_data():
 # --- Instantiate Display Object and Initialize Cron Clocks ---
 matrixportal = MatrixPortal(status_neopixel=board.NEOPIXEL, debug=True, default_bg = './Stock3.bmp')
 last_update = time.monotonic()
-last_stock_update = last_update
+last_stock_update = time.monotonic()
 stock_update_delay = 3600
 update_delay = 60
 SCROLL_DELAY = .04
-tc = time_Parser()
 
 # --- HTML Color Dictionary ---
 colors = {'RED':'#cf2727','YELLOW':'#E0F011','ORANGE':'#F0A211','GREEN':'#77D71C','BLUE':'#0846e4','PURPLE':'#824BEB'}
 pallet = list(colors.values())
 
+# --- Portfolio Data Structure: Symbol [Purchase Price, Qty, Currnet Price] ---
+stock_portfolio = ['GOOG','SHOP','DIS','PLUG','TGT']
+
+# --- Initialize Parser Variable Values ---
+tc = time_Parser()
+cp = crypto_Parser()
+sp = fetchQuotes()
 
 # --- Set Text Label ID 0 First Row ---
 matrixportal.add_text(
@@ -178,7 +173,7 @@ matrixportal.add_text(
 # --- Set Text Loop ---
 while True:
     renderTitle()
-    time.sleep(2)
+    time.sleep(3)
 
     # --- Data Feed Cron Check ---
     if time.monotonic() - last_update > update_delay:
